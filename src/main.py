@@ -11,6 +11,7 @@ from faststream.nats import NatsBroker
 
 from .config import settings
 from .handlers import create_subscriber
+from .transcription_handler import create_transcription_subscriber
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,17 +22,19 @@ logger = logging.getLogger(__name__)
 broker = NatsBroker(settings.nats_url)
 app = FastStream(broker)
 
-# Register subscriber
+# Register subscribers
 create_subscriber(broker)
+create_transcription_subscriber(broker)
 
 
 @app.on_startup
 async def startup() -> None:
     logger.info(
-        "Parser starting (TEI=%s, docling=%s, Qdrant=%s)",
+        "Parser starting (TEI=%s, docling=%s, Qdrant=%s, Speaches=%s)",
         settings.tei_url,
         settings.docling_url,
         settings.qdrant_url,
+        settings.speaches_url,
     )
 
 

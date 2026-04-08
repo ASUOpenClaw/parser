@@ -21,13 +21,24 @@ class Settings(BaseSettings):
     ocr_languages: str = "ru,en"
     max_file_size_mb: int = 100
 
-    # NATS stream/consumer
+    # NATS — indexing
     nats_stream: str = "INDEXING"
     nats_subject: str = "indexing.jobs"
     nats_durable: str = "parser"
     nats_max_retries: int = 3
     nats_retry_delay_s: int = 30
     nats_ack_wait_s: int = 600  # 10 min — large PDFs take time
+
+    # NATS — transcription
+    transcription_nats_stream: str = "TRANSCRIPTION"
+    transcription_nats_subject: str = "transcription.jobs"
+    transcription_nats_durable: str = "transcriber"
+    transcription_ack_wait_s: int = 600
+
+    # Speaches (Whisper)
+    speaches_url: str = "http://localhost:8014"
+    speaches_model: str = "Systran/faster-whisper-large-v3"
+    speaches_timeout_s: int = 300
 
 
 settings = Settings()

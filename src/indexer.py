@@ -14,11 +14,10 @@ from qdrant_client.http.models import (
     Filter,
     MatchValue,
     PointStruct,
-    SparseVector,
 )
 
 from .config import settings
-from .parsers.dispatcher import Chunk
+from .chunker import Chunk
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +57,12 @@ def upsert_chunks(
     conversation_id: str | None,
     chunks: list[Chunk],
     dense_vecs: list[list[float]],
-    sparse_vecs: list[dict[int, float]],
 ) -> int:
     """Upsert chunk points into Qdrant. Returns number of points upserted."""
     client = _get_client()
 
     points: list[PointStruct] = []
-    for chunk, dense, sparse in zip(chunks, dense_vecs, sparse_vecs):
+    for chunk, dense in zip(chunks, dense_vecs):
         payload: dict[str, Any] = {
             "workspace_id": workspace_id,
             "file_id": file_id,
@@ -82,13 +80,7 @@ def upsert_chunks(
         points.append(
             PointStruct(
                 id=str(uuid.uuid4()),
-                vector={
-                    "dense": dense,
-                    "sparse": SparseVector(
-                        indices=list(sparse.keys()),
-                        values=list(sparse.values()),
-                    ),
-                },
+                vector=dense,
                 payload=payload,
             )
         )

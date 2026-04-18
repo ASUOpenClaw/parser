@@ -15,7 +15,10 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "chunks"
 
-    tei_url: str = "http://localhost:8080"
+    # OpenAI-compatible embeddings endpoint (LiteLLM in front of Ollama)
+    embedding_url: str = "http://localhost:4000/v1"
+    embedding_model: str = "text-embedding-qwen3"
+    embedding_api_key: str = "sk-local-dev"
     docling_url: str = "http://localhost:5001"
 
     ocr_languages: str = "ru,en"

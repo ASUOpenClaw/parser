@@ -1,15 +1,11 @@
 """
-TEI (Text Embeddings Inference) HTTP client.
+OpenAI-compatible embeddings client (LiteLLM → Ollama → Qwen3-Embedding-0.6B).
 
-Returns (dense: list[float], sparse: dict[int, float]) per text.
-TEI endpoints used:
-  POST /embed          → [[float, ...], ...]
-  POST /embed_sparse   → [{"index": [...], "value": [...]}, ...]
+Dense embeddings only, 1024-dim by default.
 
-Usage:
-    embedder = Embedder(url="http://gpu-server:8080")
-    dense, sparse = await embedder.embed("hello world")
-    batch = await embedder.embed_batch(["text1", "text2"])
+Endpoint: POST {base_url}/embeddings
+Request:  {"model": "text-embedding-qwen3", "input": ["text1", ...]}
+Response: {"data": [{"embedding": [...], "index": 0}, ...]}
 """
 
 from __future__ import annotations
@@ -22,56 +18,41 @@ logger = logging.getLogger(__name__)
 
 
 class Embedder:
-    def __init__(self, url: str = "http://localhost:8080") -> None:
+    def __init__(
+        self,
+        url: str = "http://localhost:4000/v1",
+        model: str = "text-embedding-qwen3",
+        api_key: str = "sk-local-dev",
+    ) -> None:
         self._url = url.rstrip("/")
-        logger.info("TEI embedder configured: %s", self._url)
+        self._model = model
+        self._api_key = api_key
+        logger.info("Embedder configured: %s model=%s", self._url, self._model)
 
-    async def embed(self, text: str) -> tuple[list[float], dict[int, float]]:
-        """Embed a single text. Returns (dense, sparse)."""
+    async def embed(self, text: str) -> list[float]:
+        """Embed a single text. Returns dense vector."""
         results = await self.embed_batch([text])
         return results[0]
 
-    async def embed_batch(
-        self, texts: list[str]
-    ) -> list[tuple[list[float], dict[int, float]]]:
-        """Embed a list of texts. Returns list of (dense, sparse) tuples."""
-        dense_vecs, sparse_vecs = await _fetch_both(self._url, texts)
-        return list(zip(dense_vecs, sparse_vecs))
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Embed a list of texts. Returns list of dense vectors."""
+        payload = {"model": self._model, "input": texts}
+        headers = {"Authorization": f"Bearer {self._api_key}"}
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            resp = await client.post(
+                f"{self._url}/embeddings",
+                json=payload,
+                headers=headers,
+            )
+        resp.raise_for_status()
+        data = resp.json()["data"]
+        data.sort(key=lambda d: d["index"])
+        return [d["embedding"] for d in data]
 
     async def health(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(f"{self._url}/health")
+                resp = await client.get(f"{self._url}/health/liveliness")
                 return resp.status_code == 200
         except Exception:
             return False
-
-
-async def _fetch_both(
-    url: str, texts: list[str]
-) -> tuple[list[list[float]], list[dict[int, float]]]:
-    payload = {"inputs": texts}
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        dense_resp, sparse_resp = await _gather(
-            client.post(f"{url}/embed", json=payload),
-            client.post(f"{url}/embed_sparse", json=payload),
-        )
-
-    dense_resp.raise_for_status()
-    sparse_resp.raise_for_status()
-
-    dense_vecs: list[list[float]] = dense_resp.json()
-
-    # TEI sparse: [{"index": [...], "value": [...]}, ...]
-    sparse_vecs: list[dict[int, float]] = [
-        {int(i): float(v) for i, v in zip(item["index"], item["value"])}
-        for item in sparse_resp.json()
-    ]
-
-    return dense_vecs, sparse_vecs
-
-
-async def _gather(*coros):
-    """Run coroutines concurrently and return results in order."""
-    import asyncio
-    return await asyncio.gather(*coros)

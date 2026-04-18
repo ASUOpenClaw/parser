@@ -1,13 +1,12 @@
 """
-HTTP client for docling-serve.
+HTTP client for docling-serve (stable v1 API).
 
-API: POST /v1alpha/convert/source
-  Request: {"file_sources": [{"base64_string": "...", "filename": "doc.pdf"}],
-            "options": {"to_formats": ["md"], "do_ocr": true,
-                        "ocr_options": {"lang": ["ru", "en"]}}}
-  Response: {"converted_sources": [{"md_content": "...", "status": "SUCCESS"}]}
+API: POST /v1/convert/source
+  Request: {"sources": [{"kind": "file", "base64_string": "...", "filename": "doc.pdf"}],
+            "options": {"to_formats": ["md"], "do_ocr": true, "ocr_lang": ["ru", "en"]}}
+  Response: {"document": {"md_content": "..."}, "status": "success|partial_success|failure"}
 
-Returns the markdown string for the first (and only) input file.
+Returns the markdown string for the converted document.
 Raises on HTTP error or conversion failure.
 """
 
@@ -31,8 +30,9 @@ async def convert_to_markdown(path: Path, mime_type: str) -> str:
     ocr_langs = [lang.strip() for lang in settings.ocr_languages.split(",") if lang.strip()]
 
     payload = {
-        "file_sources": [
+        "sources": [
             {
+                "kind": "file",
                 "base64_string": b64,
                 "filename": path.name,
             }
@@ -40,28 +40,28 @@ async def convert_to_markdown(path: Path, mime_type: str) -> str:
         "options": {
             "to_formats": ["md"],
             "do_ocr": True,
-            "ocr_options": {"lang": ocr_langs},
+            "ocr_lang": ocr_langs,
         },
     }
 
     async with httpx.AsyncClient(timeout=600.0) as client:  # large PDFs can be slow
         resp = await client.post(
-            f"{settings.docling_url}/v1alpha/convert/source",
+            f"{settings.docling_url}/v1/convert/source",
             json=payload,
         )
+        if not resp.is_success:
+            logger.error("docling 422 body: %s", resp.text)
         resp.raise_for_status()
 
     data = resp.json()
-    sources = data.get("converted_sources") or data.get("results") or []
-    if not sources:
-        raise RuntimeError(f"docling-serve returned no results for {path.name}")
-
-    result = sources[0]
-    if result.get("status", "SUCCESS").upper() != "SUCCESS":
+    status = data.get("status", "success").lower()
+    if status == "failure":
+        errors = data.get("errors") or []
         raise RuntimeError(
-            f"docling-serve conversion failed for {path.name}: {result.get('error')}"
+            f"docling-serve conversion failed for {path.name}: {errors}"
         )
 
-    md = result.get("md_content") or result.get("markdown") or ""
-    logger.info("docling converted %s → %d chars markdown", path.name, len(md))
+    document = data.get("document") or {}
+    md = document.get("md_content") or ""
+    logger.info("docling converted %s → %d chars markdown (status=%s)", path.name, len(md), status)
     return md

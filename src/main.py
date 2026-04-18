@@ -30,8 +30,9 @@ create_transcription_subscriber(broker)
 @app.on_startup
 async def startup() -> None:
     logger.info(
-        "Parser starting (TEI=%s, docling=%s, Qdrant=%s, Speaches=%s)",
-        settings.tei_url,
+        "Parser starting (embeddings=%s model=%s, docling=%s, Qdrant=%s, Speaches=%s)",
+        settings.embedding_url,
+        settings.embedding_model,
         settings.docling_url,
         settings.qdrant_url,
         settings.speaches_url,

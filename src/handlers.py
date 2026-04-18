@@ -32,7 +32,11 @@ _embedder: Embedder | None = None
 def get_embedder() -> Embedder:
     global _embedder
     if _embedder is None:
-        _embedder = Embedder(url=settings.tei_url)
+        _embedder = Embedder(
+            url=settings.embedding_url,
+            model=settings.embedding_model,
+            api_key=settings.embedding_api_key,
+        )
     return _embedder
 
 
@@ -132,11 +136,9 @@ async def _process(job: IndexingJob) -> dict:
         if not chunks:
             return _result_payload(job, status="completed", indexed_chunks=0)
 
-        # 4. Embed via TEI (dense + sparse, fully async)
+        # 4. Embed (dense only, Qwen3-Embedding via LiteLLM → Ollama)
         embedder = get_embedder()
-        embeddings = await embedder.embed_batch([c.text for c in chunks])
-        dense_vecs = [e[0] for e in embeddings]
-        sparse_vecs = [e[1] for e in embeddings]
+        dense_vecs = await embedder.embed_batch([c.text for c in chunks])
 
         # 5. If reindex: clear old points first
         if job.type == "reindex":
@@ -159,7 +161,6 @@ async def _process(job: IndexingJob) -> dict:
             conversation_id=conversation_id,
             chunks=chunks,
             dense_vecs=dense_vecs,
-            sparse_vecs=sparse_vecs,
         )
 
         return _result_payload(job, status="completed", indexed_chunks=n)

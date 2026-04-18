@@ -9,9 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml .
-RUN pip install --no-cache-dir -e .
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-COPY src/ src/
+COPY pyproject.toml ./
+RUN uv pip install --system --no-cache .
+
+COPY src ./src
 
 CMD ["python", "-m", "src.main"]

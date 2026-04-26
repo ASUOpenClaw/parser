@@ -125,8 +125,12 @@ async def _process(job: IndexingJob) -> dict:
     # 1. Download from S3
     tmp_path = download(job.s3_key)
     try:
-        # 2. Convert via docling-serve → markdown
-        markdown = await convert_to_markdown(tmp_path, job.mime_type)
+        # 2. Convert to markdown — plain text is read directly, others via docling-serve
+        if job.mime_type in ("text/plain", "text/markdown", "text/csv"):
+            with open(tmp_path, "r", encoding="utf-8", errors="replace") as f:
+                markdown = f.read()
+        else:
+            markdown = await convert_to_markdown(tmp_path, job.mime_type)
         if not markdown.strip():
             logger.warning("Empty markdown for job %s", job.job_id)
             return _result_payload(job, status="completed", indexed_chunks=0)

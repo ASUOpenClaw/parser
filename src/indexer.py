@@ -9,11 +9,14 @@ import uuid
 from typing import Any
 
 from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.http.models import (
     FieldCondition,
     Filter,
     MatchValue,
     PointStruct,
+    VectorParams,
+    Distance,
 )
 
 from .config import settings
@@ -31,19 +34,37 @@ def _get_client() -> QdrantClient:
     return _client
 
 
+def _ensure_collection(client: QdrantClient, vector_size: int) -> None:
+    """Create the chunks collection if it doesn't exist."""
+    try:
+        client.get_collection(settings.qdrant_collection)
+    except (UnexpectedResponse, Exception):
+        client.create_collection(
+            collection_name=settings.qdrant_collection,
+            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+        )
+        logger.info("Created Qdrant collection '%s'", settings.qdrant_collection)
+
+
 def delete_file_chunks(workspace_id: str, file_id: str) -> None:
     """Delete all Qdrant points for the given file."""
     client = _get_client()
-    client.delete(
-        collection_name=settings.qdrant_collection,
-        points_selector=Filter(
-            must=[
-                FieldCondition(key="workspace_id", match=MatchValue(value=workspace_id)),
-                FieldCondition(key="file_id", match=MatchValue(value=file_id)),
-            ]
-        ),
-    )
-    logger.info("Deleted Qdrant points for file_id=%s workspace_id=%s", file_id, workspace_id)
+    try:
+        client.delete(
+            collection_name=settings.qdrant_collection,
+            points_selector=Filter(
+                must=[
+                    FieldCondition(key="workspace_id", match=MatchValue(value=workspace_id)),
+                    FieldCondition(key="file_id", match=MatchValue(value=file_id)),
+                ]
+            ),
+        )
+        logger.info("Deleted Qdrant points for file_id=%s workspace_id=%s", file_id, workspace_id)
+    except UnexpectedResponse as e:
+        if e.status_code == 404:
+            logger.debug("Collection not found during delete (nothing to delete): %s", e)
+        else:
+            raise
 
 
 def upsert_chunks(
@@ -86,6 +107,7 @@ def upsert_chunks(
         )
 
     if points:
+        _ensure_collection(client, len(points[0].vector))
         # Upsert in batches of 100
         batch_size = 100
         for i in range(0, len(points), batch_size):

@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,11 +7,12 @@ class Settings(BaseSettings):
 
     nats_url: str = "nats://localhost:4222"
 
-    s3_endpoint: str = "http://localhost:3900"
-    s3_access_key: str = ""
-    s3_secret_key: str = ""
-    s3_bucket: str = "openclaw"
-    s3_region: str = "us-east-1"
+    # S3 — shared vars (no PARSER_ prefix); same credentials as the API service
+    s3_endpoint: str = Field("http://localhost:3900", validation_alias=AliasChoices("S3_ENDPOINT_URL", "PARSER_S3_ENDPOINT"))
+    s3_access_key: str = Field("", validation_alias=AliasChoices("S3_ACCESS_KEY_ID", "PARSER_S3_ACCESS_KEY"))
+    s3_secret_key: str = Field("", validation_alias=AliasChoices("S3_SECRET_ACCESS_KEY", "PARSER_S3_SECRET_KEY"))
+    s3_bucket: str = Field("openclaw", validation_alias=AliasChoices("S3_BUCKET", "PARSER_S3_BUCKET"))
+    s3_region: str = Field("us-east-1", validation_alias=AliasChoices("S3_REGION", "PARSER_S3_REGION"))
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "chunks"

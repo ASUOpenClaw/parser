@@ -44,10 +44,15 @@ async def convert_to_markdown(path: Path, mime_type: str) -> str:
         },
     }
 
+    headers = {}
+    if settings.docling_api_key:
+        headers["X-Api-Key"] = settings.docling_api_key
+
     async with httpx.AsyncClient(timeout=600.0) as client:  # large PDFs can be slow
         resp = await client.post(
             f"{settings.docling_url}/v1/convert/source",
             json=payload,
+            headers=headers,
         )
         if not resp.is_success:
             logger.error("docling 422 body: %s", resp.text)

@@ -22,9 +22,14 @@ async def transcribe(
     if language:
         form["language"] = language
 
+    headers = {}
+    if settings.speaches_api_key:
+        headers["Authorization"] = f"Bearer {settings.speaches_api_key}"
+
     async with httpx.AsyncClient(timeout=settings.speaches_timeout_s) as client:
         resp = await client.post(
             f"{settings.speaches_url}/v1/audio/transcriptions",
+            headers=headers,
             data=form,
             files={"file": (filename, file_bytes, mime_type)},
         )

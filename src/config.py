@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-qwen3"
     embedding_api_key: str = "sk-local-dev"
     docling_url: str = "http://localhost:5001"
+    docling_api_key: str = ""
 
     ocr_languages: str = "ru,en"
     max_file_size_mb: int = 100
@@ -40,9 +41,10 @@ class Settings(BaseSettings):
     transcription_nats_durable: str = "transcriber"
     transcription_ack_wait_s: int = 600
 
-    # Speaches (Whisper)
+    # Speaches (Whisper via LiteLLM)
     speaches_url: str = "http://localhost:8014"
     speaches_model: str = "Systran/faster-whisper-large-v3"
+    speaches_api_key: str = ""
     speaches_timeout_s: int = 300
 
 
